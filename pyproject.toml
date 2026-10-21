@@ -1,0 +1,43 @@
+[project]
+name = "supply-chain-engine"
+version = "1.0.0"
+description = "Multi-agent autonomous supply chain / operations engine: LangGraph agents, deterministic decision engines, human-in-the-loop approval"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers -p no:cacheprovider"
+markers = ["slow: runs the 128-case legacy QA matrix (about a minute)", "security: authN/Z, tenant isolation and abuse-resistance tests (make security-test)", "chaos: controlled failure-injection tests (make chaos-test)", "load: concurrency / throughput measurements (make load-test)"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+extend-exclude = [".venv", "data", "outbox"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "RUF100"]
+ignore = [
+    "E731",   # lambdas assigned in tests / catalogue are deliberate
+    "E702", "E701",  # compact one-liners are used on purpose in the dense UI / catalogue modules
+    "UP006", "UP007", "UP035", "UP045",  # keep typing style consistent with `from __future__ import annotations`
+    "SIM105", "SIM108", "SIM102", "B008", "B905", "B904", "RUF012",
+    "E501", "E741",  # long lines / `l` as a loop name: the dense modules are formatted deliberately
+    "UP031",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501", "B011", "B017", "SIM117", "E741"]
+"ui/*" = ["F403", "F405", "E501"]
+"views/*" = ["F403", "F405", "E501", "E402"]
+"evaluation/*" = ["E402", "E501", "SIM117"]
+"app.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+plugins = ["pydantic.mypy"]
+files = ["scm", "api", "evaluation"]
+exclude = ["scm/qa.py"]

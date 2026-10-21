@@ -1,0 +1,118 @@
+====================================================================================================
+  DEMO  /  SYNTHETIC DATA   -   generated data, an in-repo MOCK ERP, no customer information
+  Every figure below is computed live. Nothing here is a customer result.
+====================================================================================================
+
+====================================================================================================
+1. Tenant and data   [DEMO tenant, SYNTHETIC retailer profile]
+====================================================================================================
+  loaded: {'skus': 12, 'suppliers': 4, 'quotes': 43, 'history_rows': 1440, 'deliveries': 140, 'provenance': 'SYNTHETIC'}
+  data-quality gate: {'ok': True, 'blocking': [], 'warnings': [], 'counts': {'inventory': 12, 'vendors': 4, 'vendor_listings': 43, 'demand_history': 1440, 'supplier_deliveries': 140}}
+
+====================================================================================================
+2. Onboarding (stateful, each step verified from real state)
+====================================================================================================
+  simulation step: done
+  [DONE       ] create_organization
+  [PENDING    ] create_admin
+  [PENDING    ] import_data
+  [DONE       ] validate_data
+  [DONE       ] configure_policies
+  [DONE       ] configure_suppliers
+  [DONE       ] run_simulation
+  [DONE       ] review_results
+  [PENDING    ] enable_production
+  production mode: NOT enabled (a demo tenant can never be promoted to production)
+
+====================================================================================================
+3. Inventory risk today   [OBSERVED on synthetic data]
+====================================================================================================
+  1 of 12 SKUs at HIGH/CRITICAL stock-out risk
+    RET-0004   Retailer item 4            risk=CRITICAL p(stock-out)=100.0%
+
+====================================================================================================
+4. BEFORE vs AFTER   [SIMULATED back-test on the tenant's own history; same demand, same suppliers]
+====================================================================================================
+  provenance: SIMULATED (common random numbers; no look-ahead)  window: 60 days
+  metric                          manual buyer    rule-based            AI     AI (lean)
+  total cost (purchase+hold+stockout)     2,539,664     2,564,635     2,526,384     2,585,275
+  stock-out events                           0             1             1             1
+  stock-out days                             0             5            32             3
+  fill rate                             100.0%         99.6%         95.8%         99.8%
+  inventory turnover (annualised)          22.1          21.3          19.1          29.4
+  safety-stock adherence                100.0%         99.2%         95.4%         99.6%
+  gross profit                         998,608       970,125       869,470       944,751
+  manual touches (assumption-based)            61            37            18            56
+  Reading: differences come from the policy only. This is ONE seed of a simulation of synthetic history - it can favour either side; see 4c for the 20 pre-registered runs.
+  'AI' keeps safety stock for service; 'AI (lean)' orders to forecast demand (less inventory). Neither is guaranteed to beat a manual buyer, as 4c shows.
+
+====================================================================================================
+4b. Procurement decision vs a buyer taking the lowest sticker price   [OBSERVED on current data]
+====================================================================================================
+  baseline: lowest sticker price among all quotes the supplier master lists (what a buyer without the platform typically does)
+  SKUs compared 3: baseline sticker cost 136,775, optimised cost 137,680
+  baseline effective cost after the units it fails to cover and constraint violations: 119,985
+  baseline orders violating a constraint: 2, baseline shortfall units: 820
+  (a negative 'savings' on sticker price is reported as-is: the optimiser buys what is needed, from suppliers that can deliver, at a higher unit price when it must)
+
+====================================================================================================
+4c. Across the 20 PRE-REGISTERED synthetic runs (4 profiles x 5 seeds)   [SIMULATED; protocol hash-locked before running]
+====================================================================================================
+  protocol sha256 4bf614de4ccc0eab...  units=20  inclusion rule: every profile x seed is reported; no run is excluded or replaced after results are seen
+  ai_lean_vs_manual      gross profit delta    36,802 (95% CI 4,507 .. 74,592); better in 14/20 runs on gross profit, 20/20 on stock-out days
+  ai_vs_manual           gross profit delta   -58,100 (95% CI -109,794 .. -13,944); better in 7/20 runs on gross profit, 20/20 on stock-out days
+  ai_lean_vs_rule_based  gross profit delta   128,161 (95% CI 80,740 .. 182,344); better in 17/20 runs on gross profit, 20/20 on stock-out days
+  Honest summary: results are mixed by arm and metric (see the CIs); they are simulated on synthetic data and are not customer outcomes.
+
+====================================================================================================
+5. What-if   [deterministic; same input -> same output]
+====================================================================================================
+  baseline : order 3125 units for 137,680, critical SKUs 1
+  +30% demand: order 3125 units for 137,680, critical SKUs 2
+
+====================================================================================================
+6. Workflow -> tiered human approval -> mock ERP   [LangGraph engine, real execution]
+====================================================================================================
+  workflow e9157a2fe680... reached 'AWAITING_APPROVAL' in 0.3s; 6 purchase proposals
+    PO-20261002-0001  RET-0004  Retailer Supplier 3    qty=800    unit=22.74    total=18,192  lead=2d  risk=HIGH
+    PO-20261002-0002  RET-0004  Retailer Supplier 1    qty=390    unit=23.9     total=9,321  lead=8d  risk=HIGH
+    PO-20261002-0003  RET-0002  Retailer Supplier 1    qty=840    unit=79.89    total=67,108  lead=9d  risk=MEDIUM
+    PO-20261002-0004  RET-0002  Retailer Supplier 4    qty=365    unit=80.46    total=29,368  lead=9d  risk=MEDIUM
+    PO-20261002-0005  RET-0012  Retailer Supplier 1    qty=300    unit=18.42    total=5,526  lead=6d  risk=MEDIUM
+  approval chain: [(1, 2, 'PENDING')]
+  step approved by approver-1 (APPROVER)
+  final: status=COMPLETED stage=approved
+  ERP dispatch (MOCK): [('PO-20261002-0001', 'SENT', 'ERP-PO-00001'), ('PO-20261002-0002', 'SENT', 'ERP-PO-00002'), ('PO-20261002-0003', 'SENT', 'ERP-PO-00003'), ('PO-20261002-0004', 'SENT', 'ERP-PO-00004'), ('PO-20261002-0005', 'SENT', 'ERP-PO-00005'), ('PO-20261002-0006', 'SENT', 'ERP-PO-00006')]
+
+====================================================================================================
+7. Decision trace and explanations   [every sentence generated from stored data; nothing invented]
+====================================================================================================
+  trace sections: ['created_at', 'data_provenance', 'execution', 'forecasts', 'inputs', 'optimization', 'policy', 'policy_rules', 'proposals', 'risk', 'supplier_candidates', 'tenant_id', 'workflow_id']
+  RET-0002: Recommended suppliers: Retailer Supplier 1 (70%) + Retailer Supplier 4 (30%)
+      - 3% lower weighted unit price than the average of 4 quotes (paid 80.06 vs average 82.52)
+      - the cheapest quote (Retailer Supplier 1, 79.89) was not chosen: its lead time, reliability or risk made it more expensive overall once those costs were included
+      - Retailer Supplier 1: 100% historical on-time delivery over 35 deliveries; reliability score 97/100; 99.4% quality rate; allocation 840 (no capacity limit on file) and above its minimum order of 10
+  RET-0004: Recommended suppliers: Retailer Supplier 3 (67%) + Retailer Supplier 1 (33%)
+      - 3% lower weighted unit price than the average of 3 quotes (paid 23.12 vs average 23.85)
+      - the cheapest quote (Retailer Supplier 3, 22.74) was not chosen: its lead time, reliability or risk made it more expensive overall once those costs were included
+      - Retailer Supplier 3: 85% historical on-time delivery over 35 deliveries; reliability score 90/100; 99.7% quality rate; allocation 800 within its capacity of 800
+
+====================================================================================================
+8. ROI   [SIMULATED benefit, ILLUSTRATIVE cost assumptions - replace them with your own]
+====================================================================================================
+  window benefit (simulated): -53,857 over 60 days
+    purchase effect (price paid per unit served) annual     -167,103   [SIMULATED]  (baseline cost per unit - platform cost per unit) x platform
+    service effect (additional demand served) annual       -7,524   [SIMULATED]  (platform units served - baseline units served) x (revenue p
+    inventory carrying cost            annual       18,180   [SIMULATED]  baseline holding cost - platform holding cost
+    buyer time (assumption-based)      annual          687   [ASSUMPTION_BASED]  (baseline decisions x manual minutes - platform review decis
+  annual benefit after 50% realisation haircut: -155,760; assumed annual cost 40,000; ROI -4.894000967231199
+  caveat: Benefits are SIMULATED / back-tested and haircut by the realisation factor; they are not measured customer results.
+  The licence / infrastructure / support figures above are PLACEHOLDERS for this demo, not prices.
+
+====================================================================================================
+9. Usage, cost and downloadable reports
+====================================================================================================
+  plan=professional  workflows this period=1  LLM tokens=0  costs={'llm_cloud_equivalent_usd': 0.0, 'compute_usd': 2.961666666666667e-06, 'integration_usd': 0.0}
+  7 reports written to C:\Users\Siva\AppData\Local\Temp\scm_demo_6_azj4ff\demo_reports
+
+  DEMO / SYNTHETIC DATA - end of run.

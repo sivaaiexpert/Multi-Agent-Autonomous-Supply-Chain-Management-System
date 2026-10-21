@@ -1,0 +1,92 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>
+html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:Inter,system-ui,sans-serif}
+#c{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:pan-y;display:block}#c.drag{cursor:grabbing}#c.hot{cursor:pointer}
+</style></head><body><canvas id="c"></canvas>
+<script>
+(function(){
+"use strict";
+var P; try{ P = window.parent && window.parent.document ? window.parent : window; }catch(e){ P = window; }
+var cv = document.getElementById('c'), ctx = cv.getContext('2d'), W = 0, H = 0, DPR = 1;
+var LOW = false, fpsAcc = 0, fpsN = 0, lowCnt = 0, DPRCAP = 2;
+function govern(rdt){ if (rdt > .25) return; fpsAcc += rdt; fpsN++; if (fpsAcc < 1) return; var fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0;
+  if (fps < 30){ if (++lowCnt >= 2 && !LOW){ LOW = true; DPRCAP = 1; resize(); } } else lowCnt = 0; }
+function resize(){ DPR = Math.min(window.devicePixelRatio || 1, DPRCAP); W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.max(1, W * DPR); cv.height = Math.max(1, H * DPR); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+new ResizeObserver(resize).observe(cv); resize();
+var REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+var DARK = true;
+function theme(){ try{ DARK = P.document.documentElement.getAttribute('data-theme') !== 'light'; }catch(e){ DARK = true; } }
+
+/* ---- icosphere (2 subdivisions = 320 facets) ---- */
+var t = (1 + Math.sqrt(5)) / 2, V = [[-1,t,0],[1,t,0],[-1,-t,0],[1,-t,0],[0,-1,t],[0,1,t],[0,-1,-t],[0,1,-t],[t,0,-1],[t,0,1],[-t,0,-1],[-t,0,1]];
+V = V.map(function(v){ var l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; });
+var F = [[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
+function subdivide(){ var cache = {}, out = [];
+  function mid(a, b){ var k = a < b ? a + '_' + b : b + '_' + a; if (cache[k] !== undefined) return cache[k]; var p = V[a], q = V[b], m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], l = Math.hypot(m[0], m[1], m[2]);
+    V.push([m[0] / l, m[1] / l, m[2] / l]); cache[k] = V.length - 1; return cache[k]; }
+  F.forEach(function(f){ var a = mid(f[0], f[1]), b = mid(f[1], f[2]), c = mid(f[2], f[0]); out.push([f[0], a, c], [f[1], b, a], [f[2], c, b], [a, b, c]); }); F = out; }
+subdivide(); subdivide();
+var JIT = V.map(function(){ return .94 + Math.random() * .08; });
+var SAT = [{r:1.55, tilt:.5, sp:.35, c:'#00F2FE', ph:0}, {r:1.8, tilt:-.7, sp:-.28, c:'#8B5CF6', ph:2.1}, {r:2.05, tilt:.15, sp:.22, c:'#FFB020', ph:4.0}, {r:1.65, tilt:1.1, sp:-.18, c:'#C7D2E0', ph:1.2}];
+
+/* ---- interaction: drag to spin, hover to accelerate + warp vertices ---- */
+var yaw = .5, pitch = -.38, vy = 0, vp = 0, drag = false, lx = 0, ly = 0, tilt = [0, 0], time = 0, speed = 1;
+var ptr = {x:-999, y:-999, on:false}, hover = 0, hoverT = 0, warpAmt = 0, spinMul = 1, cx = 0, cy = 0, R = 1;
+cv.addEventListener('pointerdown', function(e){ drag = true; lx = e.clientX; ly = e.clientY; cv.classList.add('drag'); try{ cv.setPointerCapture(e.pointerId); }catch(_){} });
+cv.addEventListener('pointermove', function(e){ var r = cv.getBoundingClientRect(); ptr.x = e.clientX - r.left; ptr.y = e.clientY - r.top; ptr.on = true; tilt = [ptr.x / r.width - .5, ptr.y / r.height - .5];
+  var dx = e.clientX - lx, dy = e.clientY - ly;
+  if (drag){ yaw += dx * .008; pitch = Math.max(-1.2, Math.min(1.2, pitch + dy * .006)); vy = dx * .008 * 60; vp = dy * .006 * 60; }
+  else if (hoverT > .2){ vy += Math.max(-9, Math.min(9, dx * .06)); vp += Math.max(-4, Math.min(4, dy * .03)); }  /* cursor velocity feeds the spin */
+  lx = e.clientX; ly = e.clientY; });
+cv.addEventListener('pointerup', function(){ drag = false; cv.classList.remove('drag'); });
+cv.addEventListener('pointerleave', function(){ drag = false; ptr.on = false; ptr.x = ptr.y = -999; tilt = [0, 0]; });
+function rot(p, y, pi){ var cyw = Math.cos(y), syw = Math.sin(y), cp = Math.cos(pi), sp = Math.sin(pi), x = p[0] * cyw + p[2] * syw, z = -p[0] * syw + p[2] * cyw; return [x, p[1] * cp - z * sp, p[1] * sp + z * cp]; }
+function poll(){ try{ var s = P.__scmState; if (s) speed = (s.mode === 'run' || s.mode === 'suite') ? 2.4 : s.mode === 'paused' ? .5 : 1; }catch(e){} }
+var LIGHT = (function(){ var l = [-.5, .7, -.6], n = Math.hypot(l[0], l[1], l[2]); return [l[0] / n, l[1] / n, l[2] / n]; })();
+function mix(a, b, k){ return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; }
+var NAVY = [7, 12, 32], STEEL = [150, 172, 205], CYAN = [0, 242, 254], VIOLET = [139, 92, 246], SILVER = [226, 232, 240], DEEP = [30, 64, 175], BLUE = [96, 165, 250], WHITE = [255, 255, 255];
+var RV = V.map(function(){ return [0, 0, 0]; });
+var last = performance.now();
+function frame(now){ requestAnimationFrame(frame); if (document.hidden) return; var rdt = (now - last) / 1000, dt = Math.min(.05, rdt); last = now; time += dt; poll(); theme(); govern(rdt);
+  cx = W / 2; cy = H / 2 - 6; R = Math.min(W, H) * .31;
+  var over = ptr.on && Math.hypot(ptr.x - cx, ptr.y - cy) < R * 1.06; hoverT = over ? 1 : 0; hover += (hoverT - hover) * (1 - Math.pow(.02, dt)); cv.classList.toggle('hot', over && !drag);
+  spinMul += ((1 + hover * 3.2) - spinMul) * (1 - Math.pow(.05, dt)); warpAmt += (hover - warpAmt) * (1 - Math.pow(.03, dt));
+  if (!drag){ yaw += vy * dt; pitch = Math.max(-1.2, Math.min(1.2, pitch + vp * dt)); vy *= Math.pow(.12, dt); vp *= Math.pow(.12, dt); if (!REDUCED) yaw += dt * .22 * speed * spinMul; }
+  ctx.clearRect(0, 0, W, H);
+  var y1 = yaw + tilt[0] * .45, p1 = pitch + tilt[1] * .25, glow = .55 + .45 * hover;
+  /* ground shadow + neon floor reflection */
+  var sh = ctx.createRadialGradient(cx, cy + R * 1.38, 4, cx, cy + R * 1.38, R * 1.1); sh.addColorStop(0, DARK ? 'rgba(0,242,254,' + (.16 * glow) + ')' : 'rgba(15,23,42,.2)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh; ctx.beginPath(); ctx.ellipse(cx, cy + R * 1.38, R * 1.05, R * .16, 0, 0, 6.2832); ctx.fill();
+  /* neon atmosphere (cyan core, violet bloom) */
+  var at = ctx.createRadialGradient(cx, cy, R * .85, cx, cy, R * 1.6); at.addColorStop(0, 'rgba(0,242,254,' + (.3 * glow) + ')'); at.addColorStop(.55, 'rgba(139,92,246,' + (.14 * glow) + ')'); at.addColorStop(1, 'rgba(139,92,246,0)');
+  ctx.fillStyle = at; ctx.beginPath(); ctx.arc(cx, cy, R * 1.6, 0, 6.2832); ctx.fill();
+  /* rotate + warp vertices: the cursor creates a travelling bulge / ripple on the surface */
+  var warpR = R * .5;
+  for (var i = 0; i < V.length; i++){ var q = rot([V[i][0] * JIT[i], V[i][1] * JIT[i], V[i][2] * JIT[i]], y1, p1);
+    if (warpAmt > .01 && ptr.on){ var sx = cx + q[0] * R, sy = cy - q[1] * R, d = Math.hypot(sx - ptr.x, sy - ptr.y), f = Math.exp(-d * d / (2 * warpR * warpR));
+      var w = 1 + warpAmt * f * (.16 + .06 * Math.sin(time * 6 - d * .05)); q = [q[0] * w, q[1] * w, q[2] * w]; }
+    RV[i] = q; }
+  var back = [], front = [];
+  SAT.forEach(function(s){ var th = time * s.sp * speed * (1 + hover * 1.5) + s.ph, ct = Math.cos(s.tilt), st = Math.sin(s.tilt);
+    var NJ = LOW ? 45 : 90; for (var j = 0; j < NJ; j++){ var a = j / NJ * 6.2832, p = [Math.cos(a) * s.r, Math.sin(a) * s.r * st, Math.sin(a) * s.r * ct], q = rot(p, y1, p1); (q[2] > 0 ? back : front).push({x:cx + q[0] * R, y:cy - q[1] * R, z:q[2], a:.22}); }
+    var sp = [Math.cos(th) * s.r, Math.sin(th) * s.r * st, Math.sin(th) * s.r * ct], sq = rot(sp, y1, p1); (sq[2] > 0 ? back : front).push({x:cx + sq[0] * R, y:cy - sq[1] * R, z:sq[2], a:1, sat:s}); });
+  function drawPts(arr){ arr.forEach(function(d){ if (d.sat){ ctx.save(); ctx.shadowColor = d.sat.c; ctx.shadowBlur = DARK ? 16 : 6; ctx.fillStyle = DARK ? '#07101F' : 'rgba(255,255,255,.95)'; ctx.beginPath(); ctx.arc(d.x, d.y, 7.5, 0, 6.2832); ctx.fill(); ctx.fillStyle = d.sat.c; ctx.beginPath(); ctx.arc(d.x, d.y, 4.6, 0, 6.2832); ctx.fill(); ctx.restore(); }
+      else { ctx.fillStyle = (DARK ? 'rgba(160,180,210,' : 'rgba(100,116,139,') + d.a + ')'; ctx.beginPath(); ctx.arc(d.x, d.y, 1.1, 0, 6.2832); ctx.fill(); } }); }
+  drawPts(back);
+  var tris = F.map(function(f){ var a = RV[f[0]], b = RV[f[1]], c = RV[f[2]], nx = a[0] + b[0] + c[0], ny = a[1] + b[1] + c[1], nz = a[2] + b[2] + c[2], nl = Math.hypot(nx, ny, nz) || 1;
+    return {a:a, b:b, c:c, n:[nx / nl, ny / nl, nz / nl], z:(a[2] + b[2] + c[2]) / 3}; });
+  tris.sort(function(p, q){ return q.z - p.z; });
+  tris.forEach(function(tr){ var d = Math.max(0, tr.n[0] * LIGHT[0] + tr.n[1] * LIGHT[1] + tr.n[2] * LIGHT[2]), front = tr.z < 0, fres = Math.pow(1 - Math.min(1, Math.abs(tr.n[2])), 2.2), base;
+    if (DARK){ base = mix(NAVY, STEEL, Math.min(1, .1 + d * .9)); base = mix(base, VIOLET, .16 * (1 - d)); base = mix(base, CYAN, fres * (.32 + .3 * hover)); base = mix(base, WHITE, Math.pow(d, 14) * .55); }
+    else { base = mix(DEEP, SILVER, Math.min(1, .25 + d * .95)); base = mix(base, BLUE, .18 * (1 - d)); base = mix(base, CYAN, fres * .18); base = mix(base, WHITE, Math.pow(d, 14) * .8); }
+    ctx.beginPath(); ctx.moveTo(cx + tr.a[0] * R, cy - tr.a[1] * R); ctx.lineTo(cx + tr.b[0] * R, cy - tr.b[1] * R); ctx.lineTo(cx + tr.c[0] * R, cy - tr.c[1] * R); ctx.closePath();
+    ctx.fillStyle = 'rgba(' + (base[0] | 0) + ',' + (base[1] | 0) + ',' + (base[2] | 0) + ',' + (front ? .92 : .42) + ')'; ctx.fill();
+    ctx.strokeStyle = front ? (DARK ? 'rgba(0,242,254,' + (.28 + .3 * hover) + ')' : 'rgba(255,255,255,.55)') : (DARK ? 'rgba(139,92,246,.22)' : 'rgba(37,99,235,.22)'); ctx.lineWidth = front ? .75 : .5; if (!LOW || front) ctx.stroke(); });
+  var gl = ctx.createRadialGradient(cx - R * .38, cy - R * .42, 2, cx - R * .3, cy - R * .34, R * .75); gl.addColorStop(0, DARK ? 'rgba(200,230,255,.22)' : 'rgba(255,255,255,.55)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.fill();
+  /* neon rim */
+  ctx.save(); ctx.shadowColor = 'rgba(0,242,254,.9)'; ctx.shadowBlur = DARK ? 14 + 16 * hover : 8; ctx.strokeStyle = DARK ? 'rgba(0,242,254,' + (.5 + .4 * hover) + ')' : 'rgba(37,99,235,.3)'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.stroke(); ctx.restore();
+  drawPts(front);
+}
+requestAnimationFrame(frame);
+})();
+</script></body></html>

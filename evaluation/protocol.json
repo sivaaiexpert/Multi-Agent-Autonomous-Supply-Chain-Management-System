@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "title": "Manual vs rule-based vs AI-assisted procurement on synthetic customer profiles",
+  "profiles": [
+    "retailer",
+    "manufacturer",
+    "distributor",
+    "seasonal"
+  ],
+  "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105
+  ],
+  "scale": 0.25,
+  "arms": [
+    "manual",
+    "rule_based",
+    "ai",
+    "ai_lean"
+  ],
+  "comparisons": [
+    [
+      "ai",
+      "manual"
+    ],
+    [
+      "ai",
+      "rule_based"
+    ],
+    [
+      "ai_lean",
+      "manual"
+    ],
+    [
+      "ai_lean",
+      "rule_based"
+    ]
+  ],
+  "simulation": {
+    "eval_days": "profile default (60)",
+    "refit_every": 7,
+    "pack": 5,
+    "holding_rate_annual": 0.2,
+    "gross_margin": 0.25,
+    "min_reliability_rule_based": 60.0
+  },
+  "metrics": [
+    "gross_profit",
+    "total_cost",
+    "cost_per_unit_served",
+    "stockout_events",
+    "stockout_days",
+    "fill_rate",
+    "avg_inventory_value",
+    "turnover_annualized",
+    "avg_lead_time_days",
+    "late_order_rate",
+    "manual_touches",
+    "excess_value_avg",
+    "safety_stock_adherence"
+  ],
+  "bootstrap": {
+    "resamples": 2000,
+    "seed": 7,
+    "ci": 0.95
+  },
+  "inclusion_rule": "every profile x seed is reported; no run is excluded or replaced after results are seen",
+  "known_limitations": [
+    "synthetic data",
+    "simulated supplier outcomes drawn from each supplier's empirical delivery history",
+    "budget constraints are not simulated",
+    "manual effort is assumption-based (12 min per order line vs 5 min per reviewed batch)"
+  ],
+  "sha256": "4bf614de4ccc0eab8b707c3a8d19a8f7725739c4a50cffd5f6c5b89b42ec9a39"
+}

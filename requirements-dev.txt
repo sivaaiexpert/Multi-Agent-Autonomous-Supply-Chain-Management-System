@@ -1,0 +1,7 @@
+-r requirements.txt
+pytest>=9.0
+pytest-cov>=7.0
+ruff>=0.15
+mypy>=2.0
+httpx>=0.28            # FastAPI TestClient
+pyflakes>=3.0

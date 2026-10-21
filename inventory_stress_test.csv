@@ -1,0 +1,5 @@
+Item_ID,Item_Name,Stock_Level,Reorder_Point,Target_Stock
+SKU-INT-001,Premium AI Edge Accelerator Card,12,50,200
+SKU-MAL-999,<script>alert('XSS_ATTACK')</script>_CORE_SWITCH,-15,40,150
+SKU-ERR-404,Broken Data Stream Router Matrix,85,30,0
+SKU-LNK-777,High-Throughput Quantum Fiber Node,250,10,10

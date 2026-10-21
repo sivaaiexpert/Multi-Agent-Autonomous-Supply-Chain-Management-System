@@ -1,0 +1,48 @@
+# docker compose up --build            -> API (:8000) + console (:8501)
+# docker compose --profile llm up      -> additionally runs a local Ollama server (pull the model once: docker compose exec ollama ollama pull llama3.2)
+# Secrets come from .env (git-ignored). SQLite lives on the shared volume: run the API and the console on the SAME host volume (not NFS).
+services:
+  api:
+    build: .
+    command: ["sh", "-c", "python -m scm.migrations up && uvicorn api.main:app --host 0.0.0.0 --port 8000"]
+    env_file: [.env]
+    environment:
+      SCM_LLM__BASE_URL: ${SCM_LLM__BASE_URL:-http://ollama:11434}
+    ports: ["8000:8000"]
+    volumes: ["scm-data:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  console:
+    build: .
+    command: ["streamlit", "run", "app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true", "--browser.gatherUsageStats", "false"]
+    env_file: [.env]
+    environment:
+      SCM_LLM__BASE_URL: ${SCM_LLM__BASE_URL:-http://ollama:11434}
+    ports: ["8501:8501"]
+    volumes: ["scm-data:/data"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  ollama:
+    profiles: ["llm"]
+    image: ollama/ollama:latest
+    volumes: ["ollama-models:/root/.ollama"]
+    ports: ["11434:11434"]
+    restart: unless-stopped
+
+volumes:
+  scm-data:
+  ollama-models:

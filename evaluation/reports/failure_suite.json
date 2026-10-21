@@ -1,0 +1,292 @@
+{
+  "generated_at": "2026-10-02 08:53:29",
+  "data": "SYNTHETIC retailer tenants, mock ERP and local fault injection",
+  "passed": 12,
+  "total": 12,
+  "results": [
+    {
+      "fault": "LLM endpoint unreachable (connection refused)",
+      "expected": "workflow still reaches the human gate with the same decision as the deterministic path",
+      "detected": true,
+      "detection_ms": null,
+      "recovered": true,
+      "recovery_ms": 2434.6,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "status": "AWAITING_APPROVAL",
+        "decisions_equal_deterministic_reference": true,
+        "llm_metrics": {
+          "request_count": 1,
+          "failure_count": 1,
+          "timeout_count": 1,
+          "fallback_count": 1,
+          "retry_count": 0,
+          "breaker_rejections": 0,
+          "tokens_in": 0,
+          "tokens_out": 0,
+          "by_model": {},
+          "p50_ms": null,
+          "p95_ms": null,
+          "p99_ms": null
+        }
+      },
+      "scenario": "llm_unavailable",
+      "total_ms": 2894.5,
+      "passed": true
+    },
+    {
+      "fault": "tenant database write-locked by another connection",
+      "expected": "writes fail with a clear error after the busy timeout; nothing half-written; works once released",
+      "detected": true,
+      "detection_ms": 1118.4,
+      "recovered": true,
+      "recovery_ms": 13.4,
+      "integrity": "True",
+      "no_duplicates": true,
+      "state_correct": "True",
+      "evidence": {
+        "error": "OperationalError: database is locked",
+        "busy_timeout_used_s": 1,
+        "orders_before": 0,
+        "orders_after": 0
+      },
+      "scenario": "db_unavailable",
+      "total_ms": 1172.5,
+      "passed": true
+    },
+    {
+      "fault": "ERP unavailable (every call raises a retryable error)",
+      "expected": "local approval stands; pushes FAILED with reason; retry sends each PO to the ERP exactly once",
+      "detected": true,
+      "detection_ms": 294.4,
+      "recovered": true,
+      "recovery_ms": 137.3,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "approval_stage": "approved",
+        "pos_sent_locally": 4,
+        "failed_pushes_during_outage": 4,
+        "erp_orders_after_retry": 4
+      },
+      "scenario": "erp_unavailable",
+      "total_ms": 945.5,
+      "passed": true
+    },
+    {
+      "fault": "ERP calls time out",
+      "expected": "recorded as failed/retryable, no duplicate ERP orders after retry",
+      "detected": true,
+      "detection_ms": 218.8,
+      "recovered": true,
+      "recovery_ms": 102.7,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "errors": [
+          "ERPTimeout: mock ERP timed out"
+        ],
+        "erp_orders": 4
+      },
+      "scenario": "erp_timeout",
+      "total_ms": 787.0,
+      "passed": true
+    },
+    {
+      "fault": "ERP fails after accepting 2 purchase orders",
+      "expected": "2 SENT, remainder FAILED and recorded; retry sends only the remainder",
+      "detected": true,
+      "detection_ms": 236.8,
+      "recovered": true,
+      "recovery_ms": 50.2,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "sent_during_fault": 2,
+        "failed_during_fault": 2,
+        "erp_orders_final": 4
+      },
+      "scenario": "partial_dispatch",
+      "total_ms": 680.3,
+      "passed": true
+    },
+    {
+      "fault": "supplier S03 withdraws every quote",
+      "expected": "no order addressed to it; a valid plan from the remaining suppliers (or an explicit escalation)",
+      "detected": true,
+      "detection_ms": 321.6,
+      "recovered": true,
+      "recovery_ms": 321.6,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "victim": "S03",
+        "suppliers_used": [
+          "S01",
+          "S02",
+          "S04"
+        ],
+        "proposals": 4
+      },
+      "scenario": "supplier_unavailable",
+      "total_ms": 680.7,
+      "passed": true
+    },
+    {
+      "fault": "same signed webhook delivered 5 times, then re-sent with a different body under the same event id",
+      "expected": "applied once, 4 acknowledged as duplicates, tampered re-send rejected (409)",
+      "detected": true,
+      "detection_ms": 68.0,
+      "recovered": true,
+      "recovery_ms": 0.0,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "results": [
+          "processed",
+          "duplicate",
+          "duplicate",
+          "duplicate",
+          "duplicate"
+        ],
+        "changed_body": "409:event_id_reuse",
+        "event_rows": 1,
+        "stock_after": 321
+      },
+      "scenario": "duplicate_webhook_events",
+      "total_ms": 132.3,
+      "passed": true
+    },
+    {
+      "fault": "worker process killed mid-workflow",
+      "expected": "state left RUNNING, a restarted service resumes it from the durable checkpoint, no duplicate orders, recover() idempotent",
+      "detected": true,
+      "detection_ms": null,
+      "recovered": true,
+      "recovery_ms": 132.0,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "recover": {
+          "resumed": [
+            "8644e892b3704cd78e0393b8b6a3b992"
+          ],
+          "at_gate": [],
+          "failed": []
+        },
+        "second_recover": {
+          "resumed": [],
+          "at_gate": [],
+          "failed": []
+        },
+        "purchase_orders": 4,
+        "proposals": 4
+      },
+      "scenario": "worker_crash",
+      "total_ms": 420.8,
+      "passed": true
+    },
+    {
+      "fault": "corrupt customer upload (type errors, duplicate ids, negatives, blank id, injected markup)",
+      "expected": "problems reported per row; with allow_partial=False the commit is blocked and nothing is written",
+      "detected": true,
+      "detection_ms": 31.3,
+      "recovered": true,
+      "recovery_ms": 0.0,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "rows_before": 10,
+        "rows_after_commit_attempt": 10,
+        "commit_blocked": true,
+        "report_status": "BLOCKED",
+        "rejected_rows": 4,
+        "issues_sample": [
+          "name is empty after removing markup (got '<script>alert(1)</script>')",
+          "reorder_point must be a number (got 'five')",
+          "reorder_point must be >= 0 (got -3)",
+          "sku_id is required"
+        ],
+        "injected_markup_rows": 0
+      },
+      "scenario": "invalid_data_import",
+      "total_ms": 87.5,
+      "passed": true
+    },
+    {
+      "fault": "ERP on-hand differs from the platform's inventory",
+      "expected": "mismatches listed with both values; no data modified by reconciliation",
+      "detected": true,
+      "detection_ms": 3.1,
+      "recovered": true,
+      "recovery_ms": 0.0,
+      "integrity": "True",
+      "no_duplicates": true,
+      "state_correct": "True",
+      "evidence": {
+        "mismatches_found": 10,
+        "stock_sum_before": 12636.0,
+        "stock_sum_after": 12636.0
+      },
+      "scenario": "inventory_mismatch",
+      "total_ms": 23.3,
+      "passed": true
+    },
+    {
+      "fault": "customer webhook receiver unreachable",
+      "expected": "bounded retries with backoff, dead-lettered with a reason, nothing dropped; replay delivers exactly once when the receiver is back",
+      "detected": true,
+      "detection_ms": 12296.2,
+      "recovered": true,
+      "recovery_ms": 27.4,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "deliveries": 1,
+        "dead_lettered": 1,
+        "attempts_each": [
+          6
+        ],
+        "error": "URLError: <urlopen error [WinError 10061] No connection could be made because th",
+        "after_replay": [
+          "DELIVERED"
+        ]
+      },
+      "scenario": "outbound_endpoint_down",
+      "total_ms": 12372.3,
+      "passed": true
+    },
+    {
+      "fault": "tenant data destroyed after a backup; then a corrupted backup is offered",
+      "expected": "restore reproduces row counts and a valid audit chain; a corrupted backup is refused",
+      "detected": true,
+      "detection_ms": null,
+      "recovered": true,
+      "recovery_ms": 65.8,
+      "integrity": true,
+      "no_duplicates": true,
+      "state_correct": true,
+      "evidence": {
+        "measured_restore_ms": 65.8,
+        "backup_seconds": 0.067,
+        "rows_in_backup": 4,
+        "audit_events_verified": 18,
+        "corrupted_backup_refused": true,
+        "scope": "measured on this machine with a small synthetic tenant; RTO for real data volumes must be measured on the target system. RPO is the backup interval you schedule (not measured here)"
+      },
+      "scenario": "disaster_recovery",
+      "total_ms": 914.2,
+      "passed": true
+    }
+  ]
+}

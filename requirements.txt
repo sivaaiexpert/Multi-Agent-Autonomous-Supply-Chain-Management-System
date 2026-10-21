@@ -1,0 +1,15 @@
+# Runtime dependencies (lower bounds are the versions the test-suite was run against)
+streamlit>=1.64
+langgraph>=1.2
+langgraph-checkpoint-sqlite>=3.1       # durable checkpoints for the API / worker
+langchain-core>=1.6
+langchain-ollama>=1.1
+pydantic>=2.13
+pydantic-settings>=2.15
+fastapi>=0.140
+uvicorn>=0.50
+pandas>=2.0
+numpy>=1.26
+openpyxl>=3.1                          # Excel uploads on the Provisioning page
+# Optional, only for the on-premise DB link test: psycopg2-binary (PostgreSQL) or pymysql (MySQL)
+cryptography>=42
